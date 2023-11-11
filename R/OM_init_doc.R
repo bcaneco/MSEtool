@@ -383,6 +383,8 @@ OMinit <- function(name=NULL, ..., files=c('xlsx', 'rmd'), dir=NULL, overwrite=F
 #'   generated via pandoc.
 #' @param toc.right Logical. Should the Table of Contents be placed on the right hand
 #'   side of the document
+#' @param html.theme Character. [Bootswatch](https://bootswatch.com/) theme to
+#'   use for rendering the output HTML file :Default: 'flatly'
 #' @param ... Optional additional named arguments provided to `runMSE`
 #'
 # #' @templateVar url creating-a-new-operating-model
@@ -404,13 +406,16 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
                   openFile=TRUE, quiet=FALSE, dir=NULL, 
                   bib.file = NULL, 
                   toc.right = FALSE, 
+                  html.theme = "flatly", 
+                  ...) {
+  
   if (!requireNamespace("rmarkdown", quietly = TRUE)) {
     stop("Package \"rmarkdown\" needed for this function to work. Please install it.",
          call. = FALSE)
   }
   
   # markdown compile options
-  toc=TRUE; color="blue";  theme="flatly"
+  toc=TRUE; color="blue";  theme=html.theme
   if (is.null(dir)) dir <- getwd()
   OMXLname <- NULL
   
