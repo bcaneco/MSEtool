@@ -381,6 +381,8 @@ OMinit <- function(name=NULL, ..., files=c('xlsx', 'rmd'), dir=NULL, overwrite=F
 #'   '.json', etc) containing references cited in the document. Path is inserted
 #'   in the appropriate YAML metadata field and citations are automatically
 #'   generated via pandoc.
+#' @param toc.right Logical. Should the Table of Contents be placed on the right hand
+#'   side of the document
 #' @param ... Optional additional named arguments provided to `runMSE`
 #'
 # #' @templateVar url creating-a-new-operating-model
@@ -401,16 +403,17 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
                   inc.plot=TRUE, render=TRUE, output="html_document",
                   openFile=TRUE, quiet=FALSE, dir=NULL, 
                   bib.file = NULL, 
+                  toc.right = FALSE, 
   if (!requireNamespace("rmarkdown", quietly = TRUE)) {
     stop("Package \"rmarkdown\" needed for this function to work. Please install it.",
          call. = FALSE)
   }
-
+  
   # markdown compile options
   toc=TRUE; color="blue";  theme="flatly"
   if (is.null(dir)) dir <- getwd()
   OMXLname <- NULL
-
+  
   if (methods::is(OM,"OM")) {
     # nothing
   } else if (methods::is(OM, 'character')) {
@@ -422,7 +425,7 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
     if (length(fls)==1) OM <- XL2OM(file.path(dir,fls), msg=FALSE)
     if (length(fls)>1) stop('argument "OM" not provided and multiple .xlsx files in ', dir, call.=FALSE)
   } else stop('OM must be class "OM" or name of OM xlsx file.', call.=FALSE)
-
+  
   if (is.null(OM)) stop('OM not imported. Is the name correct?', call.=FALSE)
   ## Read in Rmd.source file ####
   if (is.null(rmd.source)) {
@@ -446,12 +449,12 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
     if (nchar(tools::file_ext(rmd.source)) == 0) {
       rmd.source <- paste0(rmd.source, ".rmd")
     } else if (tools::file_ext(rmd.source) != "rmd") stop("rmd.source extension must be rmd", call.=FALSE)
-
+    
     if (!file.exists(file.path(dir,rmd.source))) stop(rmd.source, " not found in ", dir, call.=FALSE)
-    message_info("Reading ", file.path(dir,rmd.source))
+    MSEtool:::message_info("Reading ", file.path(dir,rmd.source))
     textIn <- readLines(file.path(dir,rmd.source))
   }
-
+  
   ## Create Markdown file ####
   if (!dir.exists(file.path(dir, 'build'))) {
     dir.create(file.path(dir, 'build'))
@@ -459,15 +462,15 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
     cat("This directory was created by MSEtool function OMdoc\n\n", sep="", append=TRUE, file=file.path(dir,'build/readme.txt'))
     cat("Files in this directory are used to generate the OM report.\n\n", sep="", append=TRUE, file=file.path(dir,'build/readme.txt'))
   }
-
+  
   if(dir.exists(file.path(dir,"images"))) {
     dir.create(file.path(dir,'build/images'), showWarnings = FALSE)
     cpy <- file.copy(file.path(dir,'images'), file.path(dir,'build'), overwrite=TRUE, recursive = TRUE)
   }
-
+  
   if (is.null(out.file)) out.file <- tools::file_path_sans_ext(rmd.source)
   # out.file <- gsub("_source", "_compiled", out.file)
-
+  
   RMDfile <- file.path(dir, paste0("build/", out.file, ".Rmd"))
   # if (file.exists(RMDfile) & !overwrite) {
   #   stop(RMDfile, " already exists.\n Provide a different output file name ('out.file') or use 'overwrite=TRUE'")
@@ -475,8 +478,8 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
   #   message('Writing ', RMDfile)
   tt <- file.create(RMDfile)
   # }
-
-
+  
+  
   ## Write YAML ####
   ind <- grep("^# Title", textIn)
   if (length(ind)>0) {
@@ -485,7 +488,7 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
   } else {
     title <- paste("Operating Model:", OM@Name)
   }
-
+  
   ind <- grep("^# Subtitle", textIn)
   if (length(ind)>0) {
     subtitle <- trimws(textIn[ind+1])
@@ -493,7 +496,7 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
   } else {
     subtitle <- NULL
   }
-
+  
   ind <- grep("# Author", textIn)
   if (length(ind)>0) {
     temp <- min(which(nchar(textIn[(ind+1):length(textIn)]) == 0))
@@ -505,7 +508,7 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
   } else {
     authors <- "No author provided"
   }
-
+  
   ind <- grep("# Date", textIn)
   if (length(ind)>0) {
     date <- trimws(textIn[(ind+1)])
@@ -513,7 +516,7 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
   } else {
     date <- NULL
   }
-
+  
   cat("---\n", sep="", append=TRUE, file=RMDfile)
   cat("title: '", title, "'\n", append=TRUE, file=RMDfile, sep="")
   if (!is.null(subtitle)) cat("subtitle: '", subtitle, "'\n", append=TRUE, file=RMDfile, sep="")
@@ -526,7 +529,7 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
       #   cat("- ", authors[xx], "\n", append=TRUE, file=RMDfile, sep="")
       # }
       cat("- ", authors[xx], "\n", append=TRUE, file=RMDfile, sep="")
-
+      
     }
   } else {
     cat("author: ", authors, "\n", append=TRUE, file=RMDfile, sep="")
@@ -535,11 +538,11 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
     # } else {
     #   cat("author: ", authors, "^[", affiliation, "]\n", append=TRUE, file=RMDfile, sep="")
     # }
-
+    
   }
   if (is.null(date)) date <- format(Sys.time(), '%d %B %Y')
   cat("date: ", date, "\n", append=TRUE, file=RMDfile, sep="")
-
+  
   if (toc) {
     cat("output: ", "\n", append=TRUE, file=RMDfile, sep="")
     cat("   ", output, ":", "\n", append=TRUE, file=RMDfile, sep="")
@@ -549,8 +552,8 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
       cat("     toc_float: true\n", append=TRUE, file=RMDfile, sep="")
       cat("     theme: ", theme, "\n", append=TRUE, file=RMDfile, sep="")
     }
-
-
+    
+    
   } else {
     cat("output: ", output, "\n", append=TRUE, file=RMDfile, sep="")
   }
@@ -561,7 +564,26 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
   }
 
   cat("---\n\n", sep="", append=TRUE, file=RMDfile)
+  
+  if(toc.right){
+    
+    cat("\n
+```{css toc-content, echo = FALSE}
+    
+  #TOC {
+  right: 50px;
+  margin: 20px 0px 25px 0px;
+  }
+  
+ .col-md-3 {
+	width: 0%;
+	}
 
+  .main-container {
+  margin-left: 5px;
+  }
+``` \n", append = TRUE, file = RMDfile)
+  }
 
   ## knitr options ####
   # cat("```{r setup, include=FALSE}\n", append=TRUE, file=RMDfile, sep="")
