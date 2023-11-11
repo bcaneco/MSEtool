@@ -1017,7 +1017,7 @@ writeSection <- function(class=c("Intro", "Stock", "Fleet", "Obs", "Imp", "Refer
             #   val <- slot(OM, sl)
             # }
             if (is.numeric(val)) val <- round(val,2)
-            used <- length(val)>0 && !is.na(val) && !is.null(val) # is the slot used?
+            used <- length(val)>0 && all(!is.na(val)) && !is.null(val) # is the slot used? # BC: `all` required to deal with cases when length(val) == 2 (e.g. slots `h`, `Msd`)
             if (used) {
               val <- gsub('"', "", paste(val, collapse="\", \""))
               valtext <- paste0("Specified Value(s): ", "<span style='color:", color, "'>", " ", trimws(val), "</span>", "\n\n")
