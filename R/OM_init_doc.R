@@ -377,6 +377,10 @@ OMinit <- function(name=NULL, ..., files=c('xlsx', 'rmd'), dir=NULL, overwrite=F
 #' @param openFile Logical. Should the compiled file be opened in web browser?
 #' @param quiet TRUE to suppress printing of the pandoc command line.
 #' @param dir Optional file path to read the xlsx and rmd files. Default is `getwd()`
+#' @param bib.file Optional file path to a bibliography file (e.g. '.bib',
+#'   '.json', etc) containing references cited in the document. Path is inserted
+#'   in the appropriate YAML metadata field and citations are automatically
+#'   generated via pandoc.
 #' @param ... Optional additional named arguments provided to `runMSE`
 #'
 # #' @templateVar url creating-a-new-operating-model
@@ -395,9 +399,8 @@ OMinit <- function(name=NULL, ..., files=c('xlsx', 'rmd'), dir=NULL, overwrite=F
 #' }
 OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
                   inc.plot=TRUE, render=TRUE, output="html_document",
-                  openFile=TRUE, quiet=FALSE,
-                  dir=NULL, ...) {
-
+                  openFile=TRUE, quiet=FALSE, dir=NULL, 
+                  bib.file = NULL, 
   if (!requireNamespace("rmarkdown", quietly = TRUE)) {
     stop("Package \"rmarkdown\" needed for this function to work. Please install it.",
          call. = FALSE)
@@ -551,6 +554,12 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
   } else {
     cat("output: ", output, "\n", append=TRUE, file=RMDfile, sep="")
   }
+  
+  if(!is.null(bib.file)){
+    cat("bibliography: ../", bib.file, "\n", append = TRUE, file = RMDfile, 
+        sep = "")
+  }
+
   cat("---\n\n", sep="", append=TRUE, file=RMDfile)
 
 
@@ -559,9 +568,9 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
   # cat("library(knitr)\n", append=TRUE, file=RMDfile, sep="")
   # cat("opts_chunk$set(dev = 'pdf')\n", append=TRUE, file=RMDfile, sep="")
   # cat("```\n", append=TRUE, file=RMDfile, sep="")
-
+  
   ## Generate Sampled Parameters ####
-
+  
   Pars <- NULL
   out <- NULL
   if (inc.plot) {
@@ -571,7 +580,7 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
     fileName <- OM@Name
     fileName <- gsub(" ", "", gsub("[[:punct:]]", "", fileName))
     if (nchar(fileName)>15) fileName <-  substr(fileName, 1, 15)
-
+    
     if (file.exists(paste0(file.path(dir, 'build/', paste0(fileName, '.dat'))))) {
       chkFile <- file.exists(paste0(file.path(dir, 'build/', paste0(fileName, 'Hist.dat'))))
       if (chkFile) {
@@ -581,7 +590,7 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
           # check if OM has changed
           changed <- rep(FALSE, length(slotNames(OM)))
           for (sl in seq_along(slotNames(OM))) {
-
+            
             oldOM <- slot(OM, slotNames(OM)[sl])
             newOM <- slot(testOM, slotNames(OM)[sl])
             oldOM <- oldOM[!is.na(oldOM)]
@@ -598,7 +607,7 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
                   for (xx in 1:length(oldOM)) {
                     if (!inherits(oldOM[[xx]], 'Data'))
                       if(any(oldOM[[xx]] != newOM[[xx]]))changed[sl] <- TRUE
-
+                    
                   }
                 }
               }
@@ -617,13 +626,13 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
         file.remove(file.path(dir,paste0('build/',fileName, '.dat')))
         runSims <- TRUE
       }
-
-
+      
+      
     } else{
       saveRDS(OM, file=file.path(dir,paste0('build/', fileName, '.dat')))
       runSims <- TRUE
     }
-
+    
     if (runSims) {
       message("\nRunning Historical Simulations")
       OM2 <- updateMSE(OM) # update and add missing slots with default values
@@ -637,7 +646,7 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
       saveRDS(out, file=file.path(dir,paste0('build/', fileName, 'Hist.dat')))
     }
   }
-
+  
   ## Input text ####
   # ind <- which(unlist(lapply(textIn, nchar)) == 0) # delete empty lines
   # if (length(ind) > 0) textIn <- textIn[-ind]
@@ -651,22 +660,22 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
     if (length(ind) == 0) stop("# Stock Parameters not found", call.=FALSE)
     textIn <- textIn[ind:length(textIn)]
   }
-
+  
   ## Introduction ####
   writeSection(class="Intro", OM, Pars, textIn, RMDfile, color=color, inc.plot=inc.plot)
-
+  
   ## OM Details ####
   OMdesc <- MSEtool::OMDescription
   cat("# Operating Model \n", append=TRUE, file=RMDfile, sep="")
-
+  
   ## Link to OM object ####
   chkFile <- file.exists("OM.rdata")
   if (chkFile) {
     cat("The OM rdata file can be downloaded from [here](OM.rdata)\n\n", append=TRUE, file=RMDfile, sep="")
     cat("Download and import into R using `myOM <- readRDS('OM.rdata')` \n\n", append=TRUE, file=RMDfile, sep="")
   }
-
-
+  
+  
   # Taxonomic Info and Location ####
   if (.hasSlot(OM, 'Species') && !is.na(OM@Species)) {
     cat("## Species Information \n\n", append=TRUE, file=RMDfile, sep="")
@@ -684,28 +693,28 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
       cat("**Longitude**: ", long, "\n\n", append=TRUE, file=RMDfile, sep="")
     }
   }
-
+  
   cat("## OM Parameters \n", append=TRUE, file=RMDfile, sep="")
   cat("**OM Name**: ", OMdesc$Description[OMdesc$Slot =='Name'], ": ", "<span style='color:", color, "'>", " ", OM@Name, "</span>", "\n\n", append=TRUE, file=RMDfile, sep="")
-
+  
   cat("**nsim**: ", OMdesc$Description[OMdesc$Slot =='nsim'], ": ", "<span style='color:", color, "'>", " ", OM@nsim, "</span>", "\n\n", "\n\n", append=TRUE, file=RMDfile, sep="")
-
+  
   cat("**proyears**: ", OMdesc$Description[OMdesc$Slot =='proyears'], ": ", "<span style='color:", color, "'>", " ", OM@proyears, "</span>", "\n\n", "\n\n", append=TRUE, file=RMDfile, sep="")
-
+  
   cat("**interval**: ", OMdesc$Description[OMdesc$Slot =='interval'], " ", "<span style='color:", color, "'>", " ", OM@interval, "</span>", "\n\n",append=TRUE, file=RMDfile, sep="")
-
+  
   cat("**pstar**: ", OMdesc$Description[OMdesc$Slot =='pstar'], ": ", "<span style='color:", color, "'>", " ", OM@pstar, "</span>", "\n\n",append=TRUE, file=RMDfile, sep="")
-
+  
   cat("**maxF**: ", OMdesc$Description[OMdesc$Slot =='maxF'], ": ", "<span style='color:", color, "'>", " ", OM@maxF, "</span>", "\n\n", append=TRUE, file=RMDfile, sep="")
-
+  
   cat("**reps**: ", OMdesc$Description[OMdesc$Slot =='reps'], " ", "<span style='color:", color, "'>", " ", OM@reps, "</span>", "\n\n", append=TRUE, file=RMDfile, sep="")
-
+  
   cat("**Source**: ", OMdesc$Description[OMdesc$Slot =='Source'], "\n\n", "<span style='color:", color, "'>", " ", OM@Source, "</span>", "\n\n", append=TRUE, file=RMDfile, sep="")
-
+  
   ##
-
-
-
+  
+  
+  
   useCpars <- length(OM@cpars) >0
   ## Cpars ####
   if (useCpars) {
@@ -716,47 +725,47 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
   ## Stock Parameters ####
   message("writing Stock section")
   writeSection(class="Stock", OM, Pars, textIn, RMDfile, color=color, inc.plot=inc.plot)
-
+  
   ## Fleet Parameters ####
   message("writing Fleet section")
   writeSection(class="Fleet", OM, Pars, textIn, RMDfile, color=color, inc.plot=inc.plot)
-
+  
   ## Observation Parameters ####
   message("writing Obs section")
   writeSection(class="Obs", OM, Pars, textIn, RMDfile, color=color, inc.plot=inc.plot)
-
+  
   ## Implementation Parameters ####
   message("writing Imp section")
   writeSection(class="Imp", OM, Pars, textIn, RMDfile, color=color, inc.plot=inc.plot)
-
+  
   ## OM Plots ####
   if (inc.plot) {
-
+    
     cat("\n# Historical Simulation Plots\n", append=TRUE, file=RMDfile, sep="")
     cat("```{r, echo=FALSE,include=FALSE}\n", append=TRUE, file=RMDfile, sep="")
     cat(paste0("input <- file.path(system.file(package = 'MSEtool'),'Rmd/Hist/Hist.Rmd')\n"), append=TRUE, file=RMDfile, sep="")
     cat(" out <- knitr::knit_child(input) \n", append=TRUE, file=RMDfile, sep="")
     cat("```\n\n", append=TRUE, file=RMDfile, sep="")
-
+    
     cat("```{r, echo=FALSE, results='asis'}\n", append=TRUE, file=RMDfile, sep="")
     cat("cat(out)\n", append=TRUE, file=RMDfile, sep="")
     cat("```\n\n", append=TRUE, file=RMDfile, sep="")
-
+    
   }
-
+  
   ## References ####
   message("writing Reference section")
   writeSection(class="References", OM, Pars, textIn, RMDfile, color=color, inc.plot=inc.plot)
-
+  
   ## Render Markdown ####
   if (render) {
     RMDfileout <- gsub("_compiled", "", tools::file_path_sans_ext(RMDfile))
-
+    
     if (output == "html_document") RMDfileout <- paste0(basename(RMDfileout), ".html")
     if (output == "pdf_document") RMDfileout <- paste0(basename(RMDfileout), ".pdf")
-
+    
     message("\n\nRendering markdown document as ", RMDfileout)
-
+    
     if (all(OM@EffYears<2000)) {
       fstYr <- (OM@CurrentYr -  OM@nyears + 1)
       lstYr <- OM@CurrentYr
@@ -765,7 +774,7 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
     } else {
       EffYears <- OM@EffYears
     }
-
+    
     if (length(OM@cpars$Find)>0) {
       fstYr <- (OM@CurrentYr -  OM@nyears + 1)
       lstYr <- OM@CurrentYr
@@ -776,33 +785,32 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
     } else {
       Effvals <- data.frame(EffYears=EffYears, EffLower=signif(OM@EffLower,3), EffUpper=signif(OM@EffUpper,3))
     }
-
+    
     Pars$CurrentYr <- OM@CurrentYr
     Pars$MPA <- OM@MPA
     Pars$Hist <- out
     params <- list(OM=OM, Pars=Pars, Effvals=Effvals)
-
-
+    
+    
     params$tabs <- TRUE
     params$nyears <- OM@nyears
     params$proyears <- OM@proyears
     nsim <- dim(out@SampPars$Stock$Marray)[1]
     params$its <- sample(1:nsim, 3)
-
+    
     params$plotPars <- list(breaks=10, col="darkgray", axes=FALSE,
                             cex.main=1, lwd=2)
-
-
+    
     knitr::knit_meta(class=NULL, clean = TRUE)
     rmarkdown::render(input=RMDfile, output_file=RMDfileout, output_format=output,
                       output_dir=dir, param=params, quiet=quiet)
-
+    
     if (openFile) utils::browseURL(RMDfileout)
-
+    
   } else {
-
+    
   }
-
+  
 }
 
 
