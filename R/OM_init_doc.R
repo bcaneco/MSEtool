@@ -624,8 +624,8 @@ OMdoc <- function(OM=NULL, rmd.source=NULL, overwrite=FALSE, out.file=NULL,
             newOM <- newOM[!is.na(newOM)]
             if (!methods::is(oldOM,'character')) {
               if (!methods::is(oldOM, 'list')) {
-                if (length(oldOM)<1 || !is.finite(oldOM)) oldOM <- 0
-                if (length(newOM)<1 || !is.finite(newOM)) newOM <- 0
+                if (length(oldOM)<1 || !any(is.finite(oldOM))) oldOM <- 0   # BC: `any` likely more suited to deal with cases where length(oldOM) > 2
+                if (length(newOM)<1 || !any(is.finite(newOM))) newOM <- 0   # BC idem, for length(newOM) > 2
                 if (any(oldOM != newOM)) changed[sl] <- TRUE
               } else {
                 if (length(oldOM) != length(newOM)) {
@@ -1078,6 +1078,7 @@ writeSection <- function(class=c("Intro", "Stock", "Fleet", "Obs", "Imp", "Refer
             if (sl == slots[length(slots)]) {
               if (class == "Stock") {
 
+                
                 if (grepl("Mortality and age", ClTemp[rr])) {
                   rmdfile <- 'NaturalMortality'
                 } else if (grepl("Recruitment", ClTemp[rr])) {
@@ -1098,13 +1099,13 @@ writeSection <- function(class=c("Intro", "Stock", "Fleet", "Obs", "Imp", "Refer
                   cat(paste0("input <- file.path(system.file(package = 'MSEtool'),'Rmd/", class, "/", rmdfile, ".Rmd')\n"), append=TRUE, file=RMDfile, sep="")
                   cat(" out <- knitr::knit_child(input) \n", append=TRUE, file=RMDfile, sep="")
                   cat("```\n\n", append=TRUE, file=RMDfile, sep="")
-
+                  
                   cat("```{r, echo=FALSE, results='asis'}\n", append=TRUE, file=RMDfile, sep="")
                   cat("cat(out)\n", append=TRUE, file=RMDfile, sep="")
                   cat("```\n\n", append=TRUE, file=RMDfile, sep="")
                 }
-
-
+                
+                
               }
               if (class == "Fleet") {
                 if (grepl("Trend in historical ", ClTemp[rr])) {
@@ -1123,7 +1124,7 @@ writeSection <- function(class=c("Intro", "Stock", "Fleet", "Obs", "Imp", "Refer
                   cat(paste0("input <- file.path(system.file(package = 'MSEtool'),'Rmd/", class, "/", rmdfile, ".Rmd')\n"), append=TRUE, file=RMDfile, sep="")
                   cat(" out <- knitr::knit_child(input) \n", append=TRUE, file=RMDfile, sep="")
                   cat("```\n\n", append=TRUE, file=RMDfile, sep="")
-
+                  
                   cat("```{r, echo=FALSE, results='asis'}\n", append=TRUE, file=RMDfile, sep="")
                   cat("cat(out)\n", append=TRUE, file=RMDfile, sep="")
                   cat("```\n\n", append=TRUE, file=RMDfile, sep="")
@@ -1134,7 +1135,6 @@ writeSection <- function(class=c("Intro", "Stock", "Fleet", "Obs", "Imp", "Refer
         }
       }
     }
-
     if ((class == "Obs" | class =='Imp') & inc.plot) {
       plotText(OM, slots=class, RMDfile)
     }
