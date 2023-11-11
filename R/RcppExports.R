@@ -10,8 +10,24 @@ LinInterp_cpp <- function(x, y, xlev) {
 }
 
 #'  Internal function to calculate MSY Reference Points
-NULL
-
+#'
+#' @param logF log fishing mortality
+#' @param M_at_Age Vector of M-at-age
+#' @param Wt_at_Age Vector of weight-at-age
+#' @param Mat_at_Age Vector of maturity-at-age
+#' @param Fec_at_Age Vector of mature weight-at-age
+#' @param V_at_Age Vector of selectivity-at-age
+#' @param maxage Maximum age
+#' @param relRfun Optional. A function used to calculate reference points if `SRrelc =3` 
+#' @param SRRpars Optional. A named list of arguments for `SRRfun`
+#' @param R0x R0 for this simulation. Set = 1 if SRrelx = 4 for per-recruit calculations
+#' @param SRrelx SRR type for this simulation. Use 4 for per-recruit calculations, i.e. constant recruitment.
+#' @param hx numeric. Steepness value for this simulation. Not used if SRrelx = 4.
+#' @param SSBpR numeric. Unfished spawners per recruit for this simulation. Not used if SRrelx = 4.
+#' @param opt Option. 1 = return -Yield, 2= return all MSY calcs
+#' @param plusgroup Integer. Default = 0 = no plus-group. Use 1 to include a plus-group
+#' @param spawn_time_frac Numeric. Fraction of the year when spawning occurs. Default = 0. 
+#' @return See `opt`
 MSYCalcs <- function(logF, M_at_Age, Wt_at_Age, Mat_at_Age, Fec_at_Age, V_at_Age, maxage, relRfun, SRRpars, R0x = 1, SRrelx = 3L, hx = 1, SSBpR = 0, opt = 1L, plusgroup = 1L, spawn_time_frac = 0) {
     .Call('_MSEtool_MSYCalcs', PACKAGE = 'MSEtool', logF, M_at_Age, Wt_at_Age, Mat_at_Age, Fec_at_Age, V_at_Age, maxage, relRfun, SRRpars, R0x, SRrelx, hx, SSBpR, opt, plusgroup, spawn_time_frac)
 }
@@ -119,7 +135,6 @@ movestockCPP <- function(nareas, maxage, mov, Number) {
 #'
 #' @param nareas The number of spatial areas
 #' @param maxage The maximum age
-#' @param SSBcurr A numeric vector of length nareas with the current spawning biomass in each area
 #' @param Ncurr A numeric matrix (maxage+1, nareas) with current numbers-at-age in each area
 #' @param pyears The number of years to project the population forward
 #' @param M_age Numeric matrix (maxage+1, pyears) with natural mortality by age and year

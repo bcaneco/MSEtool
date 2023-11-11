@@ -95,7 +95,7 @@ SampleCpars <- function(cpars, nsim=48, silent=FALSE) {
              'maxage', 'n_age', 'CurrentYr',
              'plusgroup', 'control', 'AddIUnits', 'Data', 'MPA',
              'nareas', 'Wa', 'Wb', 'maxF', 'Sample_Area', 'Asize',
-             'Real.Data.Map', 'SRR')
+             'Real.Data.Map', 'SRR', 'Ind_Yrs')
 
   cpars2 <- cpars
   cpars2[Names] <- NULL
@@ -271,9 +271,12 @@ SampleStockPars <- function(Stock, nsim=48, nyears=80, proyears=50, cpars=NULL, 
   }
 
   hs <- sample_unif('hs', cpars, Stock, nsim, 'h')
-  if (any(hs > 1 | hs < 0.2))
+  if (all(SRrel == 2)) { # Ricker steepness between 0.2-Inf
+    if (any(hs < 0.2)) stop("Steepness (OM@h) must be greater than 0.2", call.=FALSE)
+  } else if (any(hs > 1 | hs < 0.2)) {
     stop("Steepness (OM@h) must be between 0.2 and 1", call.=FALSE)
-
+  }
+  
   # ---- Depletion ----
   D <- sample_unif('D', cpars, Stock, nsim)
 
@@ -819,6 +822,13 @@ SampleStockPars <- function(Stock, nsim=48, nyears=80, proyears=50, cpars=NULL, 
   # check dimensions
   if (any(dim(mov) != c(nsim,n_age,nareas,nareas, nyears+proyears)))
     stop('cpars$mov must be array with dimensions: \nc(nsim, maxage+1, nareas, nareas) \nOR \nc(nsim, maxage+1, nareas, nareas, nyears+proyears)', call.=FALSE)
+  
+  # Timing of Spawning (fraction of year)
+  if (!is.null(cpars$spawn_time_frac)) {
+    spawn_time_frac <- cpars$spawn_time_frac
+  } else {
+    spawn_time_frac <- rep(0, nsim) # default: beginning of year
+  }
 
   StockOut <- list()
   StockOut$maxage <- maxage
@@ -877,6 +887,7 @@ SampleStockPars <- function(Stock, nsim=48, nyears=80, proyears=50, cpars=NULL, 
   StockOut$Asize <- Asize
   StockOut$nareas <- nareas
   StockOut$Fec_Age <- Fec_Age
+  StockOut$spawn_time_frac <- spawn_time_frac
   StockOut
 }
 
@@ -1238,34 +1249,41 @@ SampleFleetPars <- function(Fleet, Stock=NULL, nsim=NULL, nyears=NULL,
     if(any(dim(retA)!= c(nsim, n_age, nyears + proyears)))
       stop('retA must be dimensions: nsim, n_age, nyears + proyears')
     if (!all(c('LR5_y', 'LFR_y', 'Rmaxlen_y') %in% names(cpars))) {
-      # need to calculate these from retA
-      VB <- function(Linf, K, t0, age) Linf * (1-exp(-K*(age-t0)))
-      for (yr in 1:(nyears+proyears)) {
-        for (s in 1:nsim) {
-          xout <- seq(1, n_age, by=0.1)
-          tt <- approx(retA[s,,yr], xout=xout)
-          tt <- approx(V[s,,yr], xout=xout)
-          if (all(tt$y<0.05)) {
-            age5 <- 0
-            LR5_y[s,yr] <- tiny
-          } else {
-            age5 <- tt$x[min(which(tt$y >=0.05))]-1
-            LR5_y[s,yr] <- VB(StockPars$Linfarray[s,yr],
-                             StockPars$Karray[s,yr],
-                             StockPars$t0array[s,yr], age5)
+      if (all(retA==0)) {
+        LR5_y[] <- LFR_y[] <- Rmaxlen_y[] <- 0
+      } else {
+        # need to calculate these from retA
+        VB <- function(Linf, K, t0, age) Linf * (1-exp(-K*(age-t0)))
+        for (yr in 1:(nyears+proyears)) {
+          for (s in 1:nsim) {
+            xout <- seq(1, n_age, by=0.1)
+            tt <- approx(retA[s,,yr], xout=xout)
+            if (all(tt$y<0.05)) {
+              age5 <- 0
+              LR5_y[s,yr] <- tiny
+            } else {
+              age5 <- tt$x[min(which(tt$y >=0.05))]-1
+              LR5_y[s,yr] <- VB(StockPars$Linfarray[s,yr],
+                                StockPars$Karray[s,yr],
+                                StockPars$t0array[s,yr], age5)
+            }
+            ageFS <- tt$x[which.max(tt$y)]-1
+            if (ageFS == age5) ageFS <- age5 + 1
+            LFR_y[s, yr] <- VB(StockPars$Linfarray[s,yr],
+                               StockPars$Karray[s,yr],
+                               StockPars$t0array[s,yr], ageFS)
+            Rmaxlen_y[s, yr] <- retA[s, n_age, yr]
           }
-          ageFS <- tt$x[which.max(tt$y)]-1
-          if (ageFS == age5) ageFS <- age5 + 1
-          LFR_y[s, yr] <- VB(StockPars$Linfarray[s,yr],
-                             StockPars$Karray[s,yr],
-                             StockPars$t0array[s,yr], ageFS)
-          Rmaxlen_y[s, yr] <- retA[s, n_age, yr]
         }
       }
+
     }
   }
+  
+  if(!is.null(cpars$Rmaxlen_y)) Rmaxlen_y <- cpars$Rmaxlen_y
 
   if (!exists("retL", inherits = FALSE)) { # retention-at-length hasn't been defined yet
+  
     # calculate retL
     nCALbins <- length(StockPars$CAL_binsmid)
     CAL_binsmidMat <- matrix(StockPars$CAL_binsmid, nrow=nsim, ncol=length(StockPars$CAL_binsmid), byrow=TRUE)
@@ -1276,7 +1294,8 @@ SampleFleetPars <- function(Fleet, Stock=NULL, nsim=NULL, nyears=NULL,
       srs[!is.finite(srs)] <- Inf
       sls <- (LFR_y[,yr] - LR5_y[, yr]) /((-log(0.05,2))^0.5)
       retL[,, yr] <- t(sapply(1:nsim, getsel, lens=CAL_binsmidMat, lfs=LFR_y[,yr], sls=sls, srs=srs))
-    }
+    } 
+    
   }
 
   # Check LFR is greater than LR5
@@ -1299,7 +1318,12 @@ SampleFleetPars <- function(Fleet, Stock=NULL, nsim=NULL, nyears=NULL,
 
     retA <- aperm(array(as.numeric(unlist(VList, use.names=FALSE)), dim=c(n_age, nyears+proyears, nsim)), c(3,1,2))
   }
-
+  
+  
+  if (all(retA==0)) {
+    retL[] <- 0
+  }
+    
   # Apply general discard rate
   # if (is.null(cpars$retA)) {
   #   dr <- aperm(abind::abind(rep(list(DR_y), n_age), along=3), c(1,3,2))
@@ -1318,7 +1342,7 @@ SampleFleetPars <- function(Fleet, Stock=NULL, nsim=NULL, nyears=NULL,
 
   Fdisc <- StockPars$Fdisc
   if (!all(is.finite(Fdisc))) Fdisc <- 0
-
+  
   Fdisc_array1 <- cpars$Fdisc_array1
   if (is.null(Fdisc_array1)) Fdisc_array1 <- array(Fdisc, dim=c(nsim, n_age, nyears+proyears))
   
@@ -1330,15 +1354,24 @@ SampleFleetPars <- function(Fleet, Stock=NULL, nsim=NULL, nyears=NULL,
   if (is.null(Fleetout$retA_real)) 
     Fleetout$retA_real <- V * retA # realized retention curve (prob of retention x prob of selection)
   Fleetout$V_real <- cpars$V_real
+  
   if (is.null(Fleetout$V_real)) 
     Fleetout$V_real <- Fleetout$retA_real + ((V-Fleetout$retA_real) * Fdisc_array1)
  
+  # Realized selectivity curve max at 1
+  Fleetout$V_real_2 <- Fleetout$V_real/aperm(replicate(n_age,apply(Fleetout$V_real, c(1,3), max)), c(1,3,2))
+  Fleetout$retA_real_2 <- Fleetout$retA_real/aperm(replicate(n_age,apply(Fleetout$retA_real, c(1,3), max)), c(1,3,2))
+  
   Fleetout$retL_real <- cpars$retL_real 
   if (is.null(Fleetout$retL_real)) 
     Fleetout$retL_real <- SLarray * retL # realized retention-at-length curve (prob of retention x prob of selection)
   Fleetout$SLarray_real <- cpars$SLarray_real
+  
   if (is.null(Fleetout$SLarray_real))
     Fleetout$SLarray_real <- Fleetout$retL_real + ((SLarray-Fleetout$retL_real) * Fdisc_array2)
+  
+ 
+  
   
   # ---- Existing MPA ----
   if (inherits(Fleet@MPA, 'matrix')) {
@@ -1640,17 +1673,24 @@ SampleObsPars <- function(Obs, nsim=NULL, cpars=NULL, Stock=NULL,
   if (is.null(hsim)) {
     hsim <- rep(NA, nsim)
     cond <- StockPars$hs > 0.6
-    hsim[cond] <- 0.2 + rbeta(sum(StockPars$hs > 0.6),
-                              alphaconv((StockPars$hs[cond] - 0.2)/0.8,
-                                        (1 - (StockPars$hs[cond] - 0.2)/0.8) * Obs@hbiascv[1]),
-                              betaconv((StockPars$hs[cond] - 0.2)/0.8,
-                                       (1 - (StockPars$hs[cond] - 0.2)/0.8) * Obs@hbiascv[1])) * 0.8
-
-    hsim[!cond] <- 0.2 + rbeta(sum(StockPars$hs <= 0.6),
-                               alphaconv((StockPars$hs[!cond] - 0.2)/0.8,
-                                         (StockPars$hs[!cond] - 0.2)/0.8 * Obs@hbiascv[1]),
-                               betaconv((StockPars$hs[!cond] - 0.2)/0.8,
-                                        (StockPars$hs[!cond] - 0.2)/0.8 * Obs@hbiascv[1])) * 0.8
+    
+    if (all(StockPars$SRrel == 2)) { # Support of Ricker steepness is [0.2, Inf]
+      hsim <- rlnorm(nsim, log(StockPars$hs - 0.2), sdconv(1, Obs@hbiascv[1])) + 0.2 - 
+        0.5 * sdconv(1, Obs@hbiascv[1])^2
+    } else {
+      hsim[cond] <- 0.2 + rbeta(sum(StockPars$hs > 0.6),
+                                alphaconv((StockPars$hs[cond] - 0.2)/0.8,
+                                          (1 - (StockPars$hs[cond] - 0.2)/0.8) * Obs@hbiascv[1]),
+                                betaconv((StockPars$hs[cond] - 0.2)/0.8,
+                                         (1 - (StockPars$hs[cond] - 0.2)/0.8) * Obs@hbiascv[1])) * 0.8
+      
+      hsim[!cond] <- 0.2 + rbeta(sum(StockPars$hs <= 0.6),
+                                 alphaconv((StockPars$hs[!cond] - 0.2)/0.8,
+                                           (StockPars$hs[!cond] - 0.2)/0.8 * Obs@hbiascv[1]),
+                                 betaconv((StockPars$hs[!cond] - 0.2)/0.8,
+                                          (StockPars$hs[!cond] - 0.2)/0.8 * Obs@hbiascv[1])) * 0.8
+    }
+   
     hbias <- hsim/StockPars$hs  # back calculate the simulated bias
   } else {
     hbias <- hsim/StockPars$hs  # back calculate the simulated bias
